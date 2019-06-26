@@ -1,0 +1,110 @@
+---
+title: "Music_analysis"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(wordcloud)
+library(stringr)
+library(Cairo)
+library(tm)
+library(tibble)
+df <- read.csv("billboard_lyrics_1964-2015.csv")
+holder <- df
+names(df)
+```
+
+```{r}
+head(df, n=100)
+#nrow(df)
+#length(unique(df$Artist))
+artist_table <- table(df$Artist)
+```
+
+```{r}
+sorted <- sort(artist_table, decreasing = TRUE)
+top <- sorted[sorted > 12]
+```
+
+
+```{r}
+df <- as.data.frame(top)
+names(df) <- c("Artist", "Freq")
+# hardcoded from Google.com
+df$genre <- c("Pop", "Rock", "Pop", "R&B", "Pop", "R&B", "R&B", "Pop", "R&B", "Pop", "Pop", "Rock", "Pop", "Pop", "Rock", "R&B", "Pop", "Rock", "Pop", "R&B", "R&B", "Pop", "Pop", "R&B", "Rock")
+ggplot2::ggplot(df, aes(df$Artist, df$Freq, fill=df$genre)) + ggplot2::geom_bar(stat = "identity") + ggplot2::ylab("Frequency of Appearance") + ggplot2::xlab("Artist") + ggplot2::ggtitle("Top 100 billboard presence 1965-2015") + theme( axis.text.x = element_text(angle = 60, hjust = 1)) + labs(fill= "Genre")
+```
+
+# Love is the most frequently occurring word in the title of a top 100 billboard song...
+```{r}
+wordcloud::wordcloud(words = holder$Song, max.words = 300)
+```
+
+```{r}
+love_by_year <- holder[stringr::str_detect(string = holder$Song, pattern = "love"), ]
+love_table <- table(love_by_year$Year)
+love_table <- as.data.frame(love_table)
+names(love_table) <- c("Year", "Freq")
+```
+
+```{r}
+expression(symbol('\251'))
+ggplot2::ggplot(data = love_table, aes(love_table$Year, love_table$Freq, group = 1)) + ggplot2::geom_line(color = "black") + geom_point(color="hotpink", shape = 10) +  ylab("Frequency") + xlab("Year") + scale_x_discrete(breaks = seq(1965, 2015, 10)) + ggplot2::ggtitle('"Love" in Song Titles')
+
+```
+
+```{r}
+#dataframe for years >= 2000
+early <- holder[holder$Year >= 1965 & holder$Year < 1990, ]
+late <- holder[holder$Year > 1990, ]
+later <- holder[holder$Year >= 2000, ]
+later_mate <- TermDocumentMatrix(later$Year)
+early_mate <- TermDocumentMatrix(early$Year)
+later_mate <- as.matrix(later_mate)
+early_mate <- as.matrix(early_mate)
+```
+
+
+```{r}
+#collapse lyrics row into single string
+texter <- paste(holder$Lyrics, collapse=" ")
+#remove non-UTF-8 characters
+remove_bad <- iconv(texter, "latin1", "UTF-8", sub="")
+sourcer <- tm::VectorSource(remove_bad)
+corpus <- tm::Corpus(sourcer)
+```
+
+
+```{r}
+#clean lyric information
+corpus <- tm::tm_map(corpus, tm::removePunctuation)
+corpus <- tm::tm_map(corpus, tolower)
+
+#create matrix of word count
+dtm <- tm::DocumentTermMatrix(corpus)
+```
+
+
+```{r}
+most_freq <- tm::findMostFreqTerms(dtm, n=52)
+#convert to data frame
+dfer <- as.data.frame(most_freq)
+names(dfer) <- c("freq")
+dfer <- tibble::rownames_to_column(dfer, "word")
+#get rid of uninteresting words
+dfer_edit <- dfer[dfer$word != "for" & dfer$word != "get" & dfer$word != "got" & dfer$word != "just" & dfer$word != "youre" & dfer$word != "can" & dfer$word != "but" & dfer$word != "its" & dfer$word != "was" & dfer$word != "yeah" & dfer$word != "out" & dfer$word != "cant" & dfer$word != "and" & dfer$word != "that" & dfer$word != "your" & dfer$word != "all" & dfer$word != "dont" & dfer$word != "the" & dfer$word != "you" & dfer$word != "me" & dfer$word != "a" & dfer$word != "an" & dfer$word != "by" & dfer$word != "again" & dfer$word != "after" & dfer$word != "what" & dfer$word != "know" & dfer$word != "how", ]
+
+ggplot2::ggplot(dfer_edit, aes(dfer_edit$word, dfer_edit$freq)) + ggplot2::geom_bar(stat = "identity") + ggplot2::ylab("Frequency") + ggplot2::xlab("Word") + ggplot2::ggtitle("Word presence in song lyrics") + theme( axis.text.x = element_text(angle = 60, hjust = 1))
+
+```
+
+
+```{r}
+# Zipf's Law plot
+
+#Does music abide by Zipf's theory?
+tm::Zipf_plot(dtm)
+tm::findMostFreqTerms(dtm)
+```
+
